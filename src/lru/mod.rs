@@ -4,14 +4,14 @@ use crate::lru::traits::CacheTrait;
 
 pub mod traits;
 
-/// Structure représentant un cache LRU (Least Recently Used)
+#[derive(Debug)]
 pub struct Cache<K, V> 
 where 
     K: Hash + Eq,
 {
-    capacity: usize,
-    map: HashMap<K, V>,
-    order: Vec<K>,
+    pub(crate) capacity: usize,
+    pub(crate) map: HashMap<K, V>,
+    pub(crate) order: Vec<K>,
 }
 
 impl<K, V> Cache<K, V> 
@@ -19,6 +19,10 @@ where
     K: Hash + Eq + Clone,
 {
     pub fn new(capacity: usize) -> Self {
+        if capacity == 0 {
+            panic!("La capacité du cache ne peut pas être nulle");
+        }
+        
         Cache {
             capacity,
             map: HashMap::with_capacity(capacity),
@@ -31,6 +35,19 @@ where
             self.order.remove(pos);
             self.order.push(key.clone());
         }
+    }
+
+    pub fn len(&self) -> usize {
+        self.map.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.map.is_empty()
+    }
+
+    pub fn clear(&mut self) {
+        self.map.clear();
+        self.order.clear();
     }
 }
 
@@ -61,5 +78,14 @@ where
         } else {
             None
         }
+    }
+}
+
+impl<K, V> Default for Cache<K, V>
+where 
+    K: Hash + Eq + Clone,
+{
+    fn default() -> Self {
+        Self::new(16)
     }
 }
