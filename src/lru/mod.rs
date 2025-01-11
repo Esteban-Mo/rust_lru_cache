@@ -4,15 +4,23 @@ use crate::lru::traits::CacheTrait;
 
 pub mod traits;
 
+///////////////////////////////////////////////////////////////////////////////
+// Structure principale du cache
+///////////////////////////////////////////////////////////////////////////////
+
 #[derive(Debug)]
 pub struct Cache<K, V> 
 where 
     K: Hash + Eq,
 {
     pub(crate) capacity: usize,
-    pub(crate) map: HashMap<K, V>,
-    pub(crate) order: Vec<K>,
+    pub(crate) elements: HashMap<K, V>,
+    pub(crate) usage_order: Vec<K>,
 }
+
+///////////////////////////////////////////////////////////////////////////////
+// Implémentation de base du cache
+///////////////////////////////////////////////////////////////////////////////
 
 impl<K, V> Cache<K, V> 
 where 
@@ -20,66 +28,95 @@ where
 {
     pub fn new(capacity: usize) -> Self {
         if capacity == 0 {
-            panic!("La capacité du cache ne peut pas être nulle");
+            panic!("La capacité du cache doit être supérieure à 0");
         }
         
         Cache {
             capacity,
-            map: HashMap::with_capacity(capacity),
-            order: Vec::with_capacity(capacity),
+            elements: HashMap::with_capacity(capacity),
+            usage_order: Vec::with_capacity(capacity),
         }
     }
 
-    fn update_order(&mut self, key: &K) {
-        if let Some(pos) = self.order.iter().position(|k| k == key) {
-            self.order.remove(pos);
-            self.order.push(key.clone());
+    fn move_to_recently_used(&mut self, key: &K) {
+        if let Some(pos) = self.usage_order.iter().position(|k| k == key) {
+            self.usage_order.remove(pos);
+            self.usage_order.push(key.clone());
+        }
+    }
+
+    fn remove_oldest(&mut self) {
+        if let Some(oldest_key) = self.usage_order.first().cloned() {
+            self.elements.remove(&oldest_key);
+            self.usage_order.remove(0);
         }
     }
 
     pub fn len(&self) -> usize {
-        self.map.len()
+        self.elements.len()
     }
 
     pub fn is_empty(&self) -> bool {
-        self.map.is_empty()
+        self.elements.is_empty()
     }
 
     pub fn clear(&mut self) {
-        self.map.clear();
-        self.order.clear();
+        self.elements.clear();
+        self.usage_order.clear();
     }
 }
+
+///////////////////////////////////////////////////////////////////////////////
+// Implémentation du trait CacheTrait
+///////////////////////////////////////////////////////////////////////////////
 
 impl<K, V> CacheTrait<K, V> for Cache<K, V>
 where 
     K: Hash + Eq + Clone,
 {
     fn put(&mut self, key: K, value: V) {
-        if self.map.contains_key(&key) {
-            self.map.insert(key.clone(), value);
-            self.update_order(&key);
+        if self.elements.contains_key(&key) {
+            self.update_existing_key(&key, value);
         } else {
-            if self.map.len() >= self.capacity {
-                if let Some(lru_key) = self.order.first().cloned() {
-                    self.map.remove(&lru_key);
-                    self.order.remove(0);
-                }
-            }
-            self.map.insert(key.clone(), value);
-            self.order.push(key);
+            self.insert_new_key(key, value);
         }
     }
 
     fn get(&mut self, key: &K) -> Option<&V> {
-        if self.map.contains_key(key) {
-            self.update_order(key);
-            self.map.get(key)
+        if self.elements.contains_key(key) {
+            self.move_to_recently_used(key);
+            self.elements.get(key)
         } else {
             None
         }
     }
 }
+
+///////////////////////////////////////////////////////////////////////////////
+// Méthodes internes du cache
+///////////////////////////////////////////////////////////////////////////////
+
+impl<K, V> Cache<K, V> 
+where 
+    K: Hash + Eq + Clone,
+{
+    fn update_existing_key(&mut self, key: &K, value: V) {
+        self.elements.insert(key.clone(), value);
+        self.move_to_recently_used(key);
+    }
+
+    fn insert_new_key(&mut self, key: K, value: V) {
+        if self.elements.len() >= self.capacity {
+            self.remove_oldest();
+        }
+        self.elements.insert(key.clone(), value);
+        self.usage_order.push(key);
+    }
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// Implémentation de Default
+///////////////////////////////////////////////////////////////////////////////
 
 impl<K, V> Default for Cache<K, V>
 where 
