@@ -1,0 +1,3 @@
+clé1:valeur1
+clé2:valeur2
+clé3:valeur3

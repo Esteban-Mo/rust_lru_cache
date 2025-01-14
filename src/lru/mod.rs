@@ -12,26 +12,27 @@
 //! let mut cache = Cache::new(2);
 //! 
 //! // Ajout d'éléments
-//! cache.put("clé1", "valeur1");
-//! cache.put("clé2", "valeur2");
+//! cache.put("clé1".to_string(), "valeur1".to_string());
+//! cache.put("clé2".to_string(), "valeur2".to_string());
 //! 
 //! // Accès aux éléments
-//! assert_eq!(cache.get(&"clé1"), Some(&"valeur1"));
+//! assert_eq!(cache.get(&"clé1".to_string()), Some(&"valeur1".to_string()));
 //! 
 //! // L'ajout d'un troisième élément évince le moins récemment utilisé
-//! cache.put("clé3", "valeur3");
-//! assert_eq!(cache.get(&"clé2"), None); // clé2 a été évincée
+//! cache.put("clé3".to_string(), "valeur3".to_string());
+//! assert_eq!(cache.get(&"clé2".to_string()), None); // clé2 a été évincée
 //! ```
 //! 
 //! # Exemple avec persistance
 //! ```no_run
 //! use lru_cache::lru::Cache;
+//! use lru_cache::lru::traits::CacheTrait;
 //! 
 //! // Création d'un cache persistant
-//! let mut cache = Cache::new_persistent(2, "mon_cache.txt").unwrap();
+//! let mut cache = Cache::<String, String>::new_persistent(2, "mon_cache.txt").unwrap();
 //! 
 //! // Utilisation normale du cache
-//! cache.put("clé1", "valeur1");
+//! cache.put("clé1".to_string(), "valeur1".to_string());
 //! 
 //! // Sauvegarde de l'état du cache
 //! cache.persist("mon_cache.txt").unwrap();
@@ -139,6 +140,13 @@ where
     pub fn clear(&mut self) {
         self.elements.clear();
         self.usage_order.clear();
+    }
+
+    /// Retourne un itérateur sur les paires clé-valeur du cache.
+    pub fn iter(&self) -> impl Iterator<Item = (&K, &V)> {
+        self.usage_order.iter().filter_map(|key| {
+            self.elements.get(key).map(|value| (key, value))
+        })
     }
 }
 
@@ -248,5 +256,39 @@ where
 
         writer.flush().map_err(|e| CacheError::IoError(e))?;
         Ok(())
+    }
+}
+
+impl<K, V> CacheTrait<K, V> for Cache<K, V>
+where
+    K: Hash + Eq + Clone,
+{
+    fn get(&mut self, key: &K) -> Option<&V> {
+        if self.elements.contains_key(key) {
+            self.move_to_recently_used(key);
+            self.elements.get(key)
+        } else {
+            None
+        }
+    }
+
+    fn put(&mut self, key: K, value: V) {
+        if self.elements.len() >= self.capacity && !self.elements.contains_key(&key) {
+            // Supprimer l'élément le moins récemment utilisé
+            if let Some(lru_key) = self.usage_order.first().cloned() {
+                self.elements.remove(&lru_key);
+                self.usage_order.remove(0);
+            }
+        }
+
+        // Si la clé existe déjà, la mettre à jour
+        if self.elements.contains_key(&key) {
+            self.elements.insert(key.clone(), value);
+            self.move_to_recently_used(&key);
+        } else {
+            // Sinon, ajouter le nouvel élément
+            self.elements.insert(key.clone(), value);
+            self.usage_order.push(key);
+        }
     }
 }
