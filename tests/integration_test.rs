@@ -38,4 +38,38 @@ fn test_trait_implementation() {
     
     let mut cache = Cache::new(3);
     use_cache_trait(&mut cache);
+}
+
+#[test]
+fn test_persistent_cache() -> Result<(), Box<dyn std::error::Error>> {
+    use std::fs;
+    let cache_path = "test_cache.txt";
+
+    // Nettoyage préalable
+    let _ = fs::remove_file(cache_path);
+
+    {
+        // Test d'écriture
+        let mut cache = Cache::new_persistent(3, cache_path)?;
+        cache.put(1, 100);
+        cache.put(2, 200);
+        cache.put(3, 300);
+        cache.persist(cache_path)?;
+    }
+
+    {
+        // Test de lecture
+        let mut cache = Cache::new_persistent(3, cache_path)?;
+        assert_eq!(cache.get(&1), Some(&100));
+        assert_eq!(cache.get(&2), Some(&200));
+        assert_eq!(cache.get(&3), Some(&300));
+        
+        // Test de l'ordre LRU
+        cache.put(4, 400);
+        assert_eq!(cache.get(&1), None); // Le plus ancien devrait être évincé
+    }
+
+    // Nettoyage
+    fs::remove_file(cache_path)?;
+    Ok(())
 } 
