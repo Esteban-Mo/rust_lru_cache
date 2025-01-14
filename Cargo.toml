@@ -6,3 +6,10 @@ authors = ["Votre Nom <votre@email.com>"]
 description = "Une implémentation de cache LRU en Rust"
 
 [dependencies]
+
+[dev-dependencies]
+criterion = "0.5"
+
+[[bench]]
+name = "cache_benchmark"
+harness = false
