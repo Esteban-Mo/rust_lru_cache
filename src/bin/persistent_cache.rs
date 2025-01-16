@@ -2,6 +2,7 @@ use std::fs::{self, File, OpenOptions};
 use std::io::{self, BufRead, BufReader, Write};
 use std::path::Path;
 use lru_cache::lru::{Cache, traits::CacheTrait};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 const CACHE_FILE: &str = "cache_data.txt";
 const CACHE_DIR: &str = "cache";
@@ -30,20 +31,31 @@ fn load_cache(cache: &mut Cache<String, String>) -> io::Result<()> {
     
     // Si le fichier n'existe pas, on retourne sans erreur
     if !cache_path.exists() {
+        println!("Aucun cache existant trouvé. Création d'un nouveau cache.");
         return Ok(());
     }
 
+    println!("Chargement du cache existant...");
     let file = File::open(cache_path)?;
     let reader = BufReader::new(file);
 
     for line in reader.lines() {
         let line = line?;
         if let Some((key, value)) = line.split_once(':') {
+            println!("Chargé: {} -> {}", key, value);
             cache.put(key.to_string(), value.to_string());
         }
     }
 
     Ok(())
+}
+
+fn get_timestamp() -> String {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs()
+        .to_string()
 }
 
 fn main() -> io::Result<()> {
@@ -53,16 +65,21 @@ fn main() -> io::Result<()> {
     // Charger les données existantes
     load_cache(&mut cache)?;
     
-    // Exemple d'utilisation
-    cache.put("clé1".to_string(), "valeur1".to_string());
-    cache.put("clé2".to_string(), "valeur2".to_string());
-    cache.put("clé3".to_string(), "valeur3".to_string());
+    // Ajouter de nouvelles données avec un timestamp
+    let timestamp = get_timestamp();
+    println!("\nAjout de nouvelles données avec timestamp {}:", timestamp);
+    
+    let new_key = format!("nouvelle_clé_{}", timestamp);
+    let new_value = format!("nouvelle_valeur_{}", timestamp);
+    
+    println!("Ajout: {} -> {}", new_key, new_value);
+    cache.put(new_key, new_value);
     
     // Sauvegarder le cache
     save_cache(&cache)?;
     
-    println!("Cache sauvegardé avec succès dans {}/{}!", CACHE_DIR, CACHE_FILE);
-    println!("Contenu du cache:");
+    println!("\nCache sauvegardé avec succès dans {}/{}!", CACHE_DIR, CACHE_FILE);
+    println!("\nContenu actuel du cache:");
     for (key, value) in cache.iter() {
         println!("{}: {}", key, value);
     }
